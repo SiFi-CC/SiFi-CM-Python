@@ -7,15 +7,20 @@ from collections import namedtuple
 from sifi_cm.data_process import fit_1d, Gaussian_1D
 import pickle
 
-from pkg_resources import resource_stream
+from os import path
+
+basepath = path.dirname(__file__)
+
+# from pkg_resources import resource_stream
 
 
 class HypmedImporter():
 
     def __init__(self, mapping_file=None) -> None:
-        f = resource_stream(__name__,
-                            "data/hypmed/preprocess_data_normalized.pkl")
-        self.mapp, self.coord, self.df_pproc = pickle.load(f)
+        # f = resource_stream(__name__,
+        #                     "data/hypmed/preprocess_data_normalized.pkl")
+        with open(basepath + "/data/hypmed/preprocess_data_normalized.pkl", "rb") as f:
+            self.mapp, self.coord, self.df_pproc = pickle.load(f)
 
     def get_data(self, filename: str,
                  verbose=False, normalize=True) -> pd.DataFrame:
@@ -30,7 +35,7 @@ class HypmedImporter():
                                                 'HVD', ts])
         tot_time_sec = (df[ts].max() - df[ts].min())/10**12
         if verbose:
-            print("Total time: ", round(tot_time_sec/60, 2), "[min]")
+            print("Total measurement time: ", round(tot_time_sec/60, 2), "[min]")
         df_g = df.groupby("NeedleNumber")["PhotonsRoi"].sum().reset_index()
         if normalize:
             df_g["PhotonsRoi"] /= tot_time_sec
@@ -56,7 +61,8 @@ class HypmedImporter():
             dictionary with edges coordinates for each layer
         """
         if not map_file:
-            map_file = resource_stream(__name__, "data/hypmed/crystal_v2.root")
+            # map_file = resource_stream(__name__, "data/hypmed/crystal_v2.root")
+            map_file = basepath + "../data/hypmed/crystal_v2.root"
         with uproot.open(map_file) as f:
             mapping = f["tree"].arrays(library="pd")
 
@@ -110,16 +116,19 @@ class Reco_image(namedtuple("reco_image", "image edges true_pos")):
     ValueError
         If trying to get binWidth when widths are different for X and Y
     """
-    def __new__(cls, reco_obj, reco_edges, norm=True, true_pos=[]):
-        if int(np.sqrt(reco_obj.shape[0])) != np.sqrt(reco_obj.shape[0]):
-            raise ValueError
-        else:
-            side_size = int(np.sqrt(reco_obj.shape[0]))
-        reco = reco_obj.reshape(side_size, side_size).T[::-1, ::-1]
+    def __new__(cls, reco_obj: np.array, reco_edges: raux.Edges,
+                norm=True, true_pos=[]):
+        if len(reco_obj.shape) == 1:
+            if int(np.sqrt(reco_obj.shape[0])) != np.sqrt(reco_obj.shape[0]):
+                raise ValueError
+            else:
+                side_size = int(np.sqrt(reco_obj.shape[0]))
+            reco_obj = reco_obj.reshape(
+                side_size, side_size).T[::-1, ::-1]
         if norm:
             reco_obj /= reco_obj.sum() * 2 * reco_edges.x_binWidth\
                                        * 2 * reco_edges.y_binWidth
-        return super().__new__(cls, reco, reco_edges, true_pos)
+        return super().__new__(cls, reco_obj, reco_edges, true_pos)
 
     @property
     def projx(self):
@@ -137,9 +146,10 @@ class Reco_image(namedtuple("reco_image", "image edges true_pos")):
     def fity(self):
         return fit_1d(self.edges.y_cent, self.projy)
 
-    @classmethod
     def plot(self, label: str = None,
-                  fitx=True, fity=True, figsize=(15, 4)):
+                  fitx=True, fity=True, figsize=(15, 4),
+                  correction_x = 0,
+                  correction_y = 0):
         """_summary_
 
         Parameters
@@ -153,8 +163,9 @@ class Reco_image(namedtuple("reco_image", "image edges true_pos")):
         fig, axes = plt.subplots(ncols=3, figsize=figsize)
         fig.suptitle(label, y=1)
 
-        p = axes[0].pcolor(self.edges.x, self.edges.y,
-                        self.image, cmap="YlGnBu_r")
+        p = axes[0].pcolor(self.edges.x + correction_x,
+                           self.edges.y + correction_y,
+                           self.image, cmap="YlGnBu_r")
         if self.true_pos:
             axes[0].scatter(self.true_pos[0], self.true_pos[1],
                             marker="x", c="r")
@@ -174,7 +185,8 @@ class Reco_image(namedtuple("reco_image", "image edges true_pos")):
             axes[1].set_title(
                 f"$\mu_x$ = {round(self.fitx.mean, 2)}[mm],"
                 f"$\sigma_x$ = {round(abs(self.fitx.sigma), 2)}")
-        axes[1].scatter(self.edges.x_cent, self.projx,
+        axes[1].scatter(self.edges.x_cent + correction_x,
+                        self.projx,
                         s=10, label="reco", zorder=2)
         axes[1].set_xlabel("x")
         axes[1].legend()
@@ -189,7 +201,8 @@ class Reco_image(namedtuple("reco_image", "image edges true_pos")):
             axes[2].set_title(
                 f"$\mu_y$ = {round(self.fity.mean, 2)}[mm],"
                 f"$\sigma_y$ = {round(abs(self.fity.sigma), 2)}")
-        axes[2].scatter(self.edges.y_cent, self.projy,
+        axes[2].scatter(self.edges.y_cent + correction_y,
+                        self.projy,
                         s=10, label="reco", zorder=2)
         axes[2].set_xlabel("y")
 

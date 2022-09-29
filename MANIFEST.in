@@ -1,0 +1,3 @@
+include sifi_cm/data/hypmed/crystal_v2.root
+include sifi_cm/data/hypmed/preprocess_data_normalized.pkl
+# recursive-include sifi_cm/data *

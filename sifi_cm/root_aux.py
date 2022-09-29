@@ -1,0 +1,281 @@
+import uproot
+from collections import namedtuple, deque
+import numpy as np
+from tqdm import tqdm
+
+
+# SCORE = {"mse": 0, "uqi": 1, "both": 2}
+
+
+class Edges(namedtuple("XY", "x y")):
+    """Class inherited from named tuple which represents
+    edges of the histogram coordinates.
+
+    Raises
+    ------
+    ValueError
+        If trying to get binWidth when widths are different for X and Y
+    """
+    def __new__(cls, x, y, edges=True):
+        x = np.array(x)
+        y = np.array(y)
+        x.sort()
+        y.sort()
+        if edges:
+            return super().__new__(cls, x, y)
+        else:
+            xstep = x[1]-x[0]
+            x_edges = x - 0.5*xstep
+            x_edges = np.append(x_edges, x_edges[-1]+xstep)
+            ystep = y[1]-y[0]
+            y_edges = y - 0.5*ystep
+            y_edges = np.append(y_edges, y_edges[-1]+ystep)
+            return super().__new__(cls, x_edges, y_edges)
+
+    @property
+    def x_binWidth(self):
+        return 0.5*abs(self.x[1] - self.x[0])
+
+    @property
+    def y_binWidth(self):
+        return 0.5*abs(self.y[1] - self.y[0])
+
+    @property
+    def binWidth(self):
+        if self.x_binWidth == self.y_binWidth:
+            return self.x_binWidth
+        else:
+            raise ValueError("Different widths for X and Y")
+
+    @property
+    def x_cent(self):
+        return self.x[:-1] - sign(self.x[1] - self.x[0])*self.x_binWidth
+
+    @property
+    def y_cent(self):
+        return self.y[:-1] - sign(self.y[1] - self.y[0])*self.y_binWidth
+
+    def __eq__(self, other):
+        return np.all(self.x == other.x) and np.all(self.y == other.y)
+
+    def xy_edges(self):
+        return self.x, self.y
+
+    def xy(self):
+        return self.x_cent, self.y_cent
+
+
+def sign(x):
+    return (1, -1)[x > 0]
+
+
+class Histogram(namedtuple('Histogram', ['vals', 'edges', 'name'])):
+
+    vals: np.ndarray
+    edges: Edges
+    name: str
+
+    def __repr__(self):
+        return "Histogram {}".format(self.name)
+    
+    def __add__(self, other):
+        if self.edges == other.edges:
+            total_vals = self.vals + other.vals
+        else:
+            raise KeyError
+        if self.name == other.name:
+            name = self.name
+        else:
+            name = "summed_histo"
+        return Histogram(total_vals, self.edges, name)
+
+    def __mul__(self, other):
+        if isinstance(other, (int, float, complex)) and not isinstance(other, bool):
+            return Histogram(other*self.vals, self.edges, self.name)
+        else:
+            raise KeyError
+
+    def __rmul__(self, other):
+        if isinstance(other, (int, float, complex)) and not isinstance(other, bool):
+            return Histogram(other*self.vals, self.edges, self.name)
+        else:
+            raise KeyError
+
+
+def get_histo(path, histo_names=["energyDeposits", "sourceHist"], edges=True):
+    """Get histogram(s) from the .root file
+
+    Args:
+        path (str): Path to the root file
+        histo_names (str or iterable of strings): Name(s) of histograms
+
+    Returns:
+        if edges:
+            list[Histogram] or Histogram: 'Histogram' objects
+        else:
+            list[np.ndarray] or np.ndarray: histogram values only
+    """
+    histo_names_it = [histo_names] if type(histo_names) == str else histo_names
+    result = []
+    with uproot.open(path) as file:
+        for name in histo_names_it:
+            vals, edgesx, edgesy = file[name].to_numpy()
+            if edges:
+                result.append(Histogram(vals[:, ::-1],
+                                        Edges(edgesx, edgesy[::-1]),
+                                        name))
+            else:
+                if vals.shape[-1] == 1:
+                    result.append(vals.flatten())
+                else:
+                    result.append(vals[:, ::-1])
+
+    return result[0] if type(histo_names) == str else result
+
+
+def get_hmat(path, norm=True, hypmed=False):
+
+    if hypmed:
+        with uproot.open(path) as matr_file:
+            Tmatr2 = matr_file["matrixH0"]
+            matrixH0 = np.array(Tmatr2.member("fElements"))\
+                .reshape(Tmatr2.member("fNrows"), Tmatr2.member("fNcols"))
+
+            Tmatr2 = matr_file["matrixH1"]
+            matrixH1 = np.array(Tmatr2.member("fElements"))\
+                .reshape(Tmatr2.member("fNrows"), Tmatr2.member("fNcols"))
+
+            Tmatr2 = matr_file["matrixH2"]
+            matrixH2 = np.array(Tmatr2.member("fElements"))\
+                .reshape(Tmatr2.member("fNrows"), Tmatr2.member("fNcols"))
+        matrixH = np.vstack((matrixH0, matrixH1, matrixH2))
+    else:
+        with uproot.open(path) as matr_file:
+            Tmatr = matr_file["matrixH"]
+            matrixH = np.array(Tmatr.member("fElements"))\
+                .reshape(Tmatr.member("fNrows"), Tmatr.member("fNcols"))
+    if norm:
+        matrixH = matrixH/matrixH.sum(axis=0)  # normalization
+    return matrixH
+
+
+def get_source_edges(path):
+    return get_histo(path, "sourceHist").edges
+
+
+# def mse_uqi(x, y, normx=False, normy=True):
+#     if normx:
+#         x = normalize(x)
+#     if normy:
+#         y = normalize(y)
+#     if x.shape != y.shape:
+#         raise ValueError("Shapes of arrays are different")
+#     mse = ((y - x)**2).mean()
+#     cov = np.cov(x.flatten(), y.flatten())
+#     uqi = 4*x.mean()*y.mean()*cov[0, 1]/(cov[0, 0]+cov[1, 1])\
+#         / (x.mean()**2 + y.mean()**2)
+#     if uqi == 0:
+#         uqi = 1e-2
+#     return mse, 1/uqi, mse/uqi
+
+
+# def mse_uqi_set(x_set, y, normx=False, normy=True):
+#     if normy:
+#         y = normalize(y)
+#     mse = []
+#     uqi = []
+#     comb = []
+#     for x in x_set:
+#         mse_tmp, uqi_tmp, comb_tmp = mse_uqi(x, y, normy=False, normx=normx)
+#         mse.append(mse_tmp)
+#         uqi.append(uqi_tmp)
+#         comb.append(comb_tmp)
+#     return mse, uqi, comb
+
+
+def reco_mlem(matr, image, niter, reco=None, keep_all=True):
+    if keep_all:
+        maxlen = None
+    else:
+        maxlen = 2
+    if not reco:
+        reco = deque([np.ones(matr.shape[-1])], maxlen=maxlen)
+    for _ in tqdm(range(len(reco)-1, niter), desc="Reconstruction"):
+        reco_tmp = reco[-1]*(matr.T @ (image/(matr @ reco[-1])))
+        # reco.append(normalize(reco_tmp))
+        reco.append(reco_tmp)
+    return list(reco) if keep_all else reco[-1]
+
+
+def get_hypmed_sim_row(path):
+    simdata = get_histo(
+        path, [f"energyDepositsLayer{i}" for i in range(3)])
+    return np.hstack([sim.vals.flatten() for sim in simdata])
+
+
+def reco_mlem_last(matr, image, niter, reco=None):
+    """Reconstruction which returns only the last image
+    """
+    if not reco:
+        reco = np.ones(matr.shape[-1])
+    else:
+        reco = reco[-1]
+    for _ in range(niter):
+        reco_tmp = reco*(matr.T @ (image/(matr @ reco)))
+        reco = reco_tmp
+    return reco
+
+
+def is_prime(n):
+    if n == 2 or n == 3:
+        return True
+    if n % 2 == 0 or n < 2:
+        return False
+    for i in range(3, int(n**0.5) + 1, 2):   # only odd numbers
+        if n % i == 0:
+            return False
+    return True
+
+
+def get_mura(order):
+    """Return 2D MURA array
+    It is not a classical way.
+    Comparing to the wikipedia algorytm the mask is inverted
+    """
+    if not is_prime(order):
+        raise ValueError("The mask order should be prime")
+    quadratic_residues = np.unique(np.arange(order)**2 % order)
+    mask = np.zeros((order, order))
+    c = -np.ones(order)
+    c[np.isin(np.arange(order), quadratic_residues)] = 1
+    cc = np.outer(c, c)
+    mask[np.where(cc == 1)] = 1
+    mask = np.abs(mask - 1)[:, ::-1]
+    mask[0, :] = 1
+    mask[:, -1] = 0
+    return mask
+
+
+def get_mura_cut(order, cutx, cuty=None):
+    """Return 2D MURA array
+    It is not a classical way.
+    Comparing to the wikipedia algorytm the mask is inverted
+    """
+    if not cuty:
+        cuty = cutx
+    mask = get_mura(order)
+    mask_cut = mask[order//2-cutx//2:order//2+cutx // 2 + 1,
+                    order//2-cuty//2:order//2+cuty//2 + 1]
+    mask_cut[0, :] = 1
+    mask_cut[:, -1] = 0
+    return mask_cut
+
+
+# def reco_mlem_raw(matr, image, sens, niter=100, reco=None):
+#     if not reco:
+#         reco = [np.ones(matr.shape[-1])]
+#     for _ in tqdm(range(len(reco)-1, niter), desc="Reconstruction"):
+#         reco_tmp = reco[-1]/sens*(matr.T @ (image/(matr @ reco[-1])))
+#         # reco_tmp = reco[-1]*(matr.T @ (image/(matr @ reco[-1])))
+#         reco.append(reco_tmp)
+#     return reco

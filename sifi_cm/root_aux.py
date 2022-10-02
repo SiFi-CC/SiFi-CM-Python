@@ -1,10 +1,12 @@
-import uproot
-from collections import namedtuple, deque
+"""
+Classes and functions which help to import data from .root files
+and to reconstruct image using MLEM algorithm
+"""
+from collections import deque, namedtuple
+
 import numpy as np
+import uproot
 from tqdm import tqdm
-
-
-# SCORE = {"mse": 0, "uqi": 1, "both": 2}
 
 
 class Edges(namedtuple("XY", "x y")):
@@ -77,7 +79,7 @@ class Histogram(namedtuple('Histogram', ['vals', 'edges', 'name'])):
 
     def __repr__(self):
         return "Histogram {}".format(self.name)
-    
+
     def __add__(self, other):
         if self.edges == other.edges:
             total_vals = self.vals + other.vals
@@ -90,13 +92,15 @@ class Histogram(namedtuple('Histogram', ['vals', 'edges', 'name'])):
         return Histogram(total_vals, self.edges, name)
 
     def __mul__(self, other):
-        if isinstance(other, (int, float, complex)) and not isinstance(other, bool):
+        if isinstance(other, (int, float, complex))\
+                and not isinstance(other, bool):
             return Histogram(other*self.vals, self.edges, self.name)
         else:
             raise KeyError
 
     def __rmul__(self, other):
-        if isinstance(other, (int, float, complex)) and not isinstance(other, bool):
+        if isinstance(other, (int, float, complex))\
+                and not isinstance(other, bool):
             return Histogram(other*self.vals, self.edges, self.name)
         else:
             raise KeyError
@@ -133,8 +137,27 @@ def get_histo(path, histo_names=["energyDeposits", "sourceHist"], edges=True):
     return result[0] if type(histo_names) == str else result
 
 
-def get_hmat(path, norm=True, hypmed=False):
+def get_hmat(path: str, norm=True, hypmed=False) -> np.array:
+    """Get system matrix from .roo file. System matrix is supposed to 
+    me a matrix called 'matrixH'  if 'hypmed == False' and
+    3 matrices 'matrixH{0,1,2}' if 'hypmed == True'
 
+    Parameters
+    ----------
+    path : str
+        Path to .root file with system matrix
+    norm : bool, optional
+        If True, each element of the matrix will be divided
+        by the sum of all the values in the corresponding row, by default True
+    hypmed : bool, optional
+        If True, 3 matrices will be loaded (for each layer of hypmed crystals). By default False
+
+    Returns
+    -------
+    np.array
+        System matrix where each row number corresponds to the detector needle,
+        while the column specifies the point in the field of view.
+    """
     if hypmed:
         with uproot.open(path) as matr_file:
             Tmatr2 = matr_file["matrixH0"]
@@ -159,25 +182,108 @@ def get_hmat(path, norm=True, hypmed=False):
     return matrixH
 
 
-def get_source_edges(path):
+def get_source_edges(path: str) -> Edges:
     return get_histo(path, "sourceHist").edges
 
 
-# def mse_uqi(x, y, normx=False, normy=True):
-#     if normx:
-#         x = normalize(x)
-#     if normy:
-#         y = normalize(y)
-#     if x.shape != y.shape:
-#         raise ValueError("Shapes of arrays are different")
-#     mse = ((y - x)**2).mean()
-#     cov = np.cov(x.flatten(), y.flatten())
-#     uqi = 4*x.mean()*y.mean()*cov[0, 1]/(cov[0, 0]+cov[1, 1])\
-#         / (x.mean()**2 + y.mean()**2)
-#     if uqi == 0:
-#         uqi = 1e-2
-#     return mse, 1/uqi, mse/uqi
+def reco_mlem(matr: np.array, image: np.array,
+              niter: int = 100,
+              S: np.array = None,
+              bg: np.array = None,
+              keep_all: bool = False) -> np.array:
+    """LM-MLEM reconstruction
 
+    Parameters
+    ----------
+    matr : np.array
+        System matrix
+    image : np.array
+        Image vector to be reconstructed
+    S : np.array, optional
+        Sensetivity map, by default uniform map is used
+    bg : np.array, optional
+        Background. If used, it is added to the denomenator. By default 0
+    niter : int, optional
+        Number of iterations, by default 100
+    keep_all : bool, optional
+        if True - all intermediate reconstructed images
+        will be returned.If False - only the last one. By default False
+    Returns
+    -------
+    np.array
+        Reconstructed object vector.
+
+    Raises
+    ------
+    ValueError
+        If shapes of vectors/matrix are not appropriate.
+    """
+    if not S:
+        S = matr.sum(axis=0)
+    if not bg:
+        bg = np.zeros_like(image)
+    if matr.shape[0] != image.shape[0] != bg.shape[0]\
+            or matr.shape[-1] != S.shape[0]:
+        raise ValueError("The shape of vectors are not correct")
+    if keep_all:
+        maxlen = None
+    else:
+        maxlen = 2
+    reco = deque([np.ones(matr.shape[-1])], maxlen=maxlen)
+    for _ in tqdm(range(len(reco)-1, niter), desc="Reconstruction"):
+        reco_tmp = reco[-1]/S*(matr.T @ (image/(matr @ reco[-1]+bg)))
+        reco.append(reco_tmp)
+    return list(reco) if keep_all else reco[-1]
+
+
+def get_hypmed_sim_row(path):
+    simdata = get_histo(
+        path, [f"energyDepositsLayer{i}" for i in range(3)])
+    return np.hstack([sim.vals.flatten() for sim in simdata])
+
+
+def mse_uqi(x, y, normx=False, normy=True):
+    """Compute MSI and UQI similarities between 2 vectors
+
+    Parameters
+    ----------
+    x : np.array
+    y : np.array
+    normx : bool, optional
+        If True - vector x will be normalized, by default False
+    normy : bool, optional
+        If True - vector y will be normalized, by default True
+
+    Returns
+    -------
+    tuple(float, float, float)
+        MSE, 1/UQI, MSE/UQI
+
+    Raises
+    ------
+    ValueError
+        If lenghts of vectors are not the same
+    """
+    if normx:
+        x = normalize(x)
+    if normy:
+        y = normalize(y)
+    if x.shape != y.shape:
+        raise ValueError("Shapes of arrays are different")
+    mse = ((y - x)**2).mean()
+    cov = np.cov(x.flatten(), y.flatten())
+    uqi = 4*x.mean()*y.mean()*cov[0, 1]/(cov[0, 0]+cov[1, 1])\
+        / (x.mean()**2 + y.mean()**2)
+    if uqi == 0:
+        uqi = 1e-2
+    return mse, 1/uqi, mse/uqi
+
+
+def normalize(x):
+    if np.unique(x).shape[0] > 1:
+        return (x - x.min())/(x.max() - x.min())
+    else:
+        return np.ones_like(x)
 
 # def mse_uqi_set(x_set, y, normx=False, normy=True):
 #     if normy:
@@ -191,91 +297,3 @@ def get_source_edges(path):
 #         uqi.append(uqi_tmp)
 #         comb.append(comb_tmp)
 #     return mse, uqi, comb
-
-
-def reco_mlem(matr, image, niter, reco=None, keep_all=True):
-    if keep_all:
-        maxlen = None
-    else:
-        maxlen = 2
-    if not reco:
-        reco = deque([np.ones(matr.shape[-1])], maxlen=maxlen)
-    for _ in tqdm(range(len(reco)-1, niter), desc="Reconstruction"):
-        reco_tmp = reco[-1]*(matr.T @ (image/(matr @ reco[-1])))
-        # reco.append(normalize(reco_tmp))
-        reco.append(reco_tmp)
-    return list(reco) if keep_all else reco[-1]
-
-
-def get_hypmed_sim_row(path):
-    simdata = get_histo(
-        path, [f"energyDepositsLayer{i}" for i in range(3)])
-    return np.hstack([sim.vals.flatten() for sim in simdata])
-
-
-def reco_mlem_last(matr, image, niter, reco=None):
-    """Reconstruction which returns only the last image
-    """
-    if not reco:
-        reco = np.ones(matr.shape[-1])
-    else:
-        reco = reco[-1]
-    for _ in range(niter):
-        reco_tmp = reco*(matr.T @ (image/(matr @ reco)))
-        reco = reco_tmp
-    return reco
-
-
-def is_prime(n):
-    if n == 2 or n == 3:
-        return True
-    if n % 2 == 0 or n < 2:
-        return False
-    for i in range(3, int(n**0.5) + 1, 2):   # only odd numbers
-        if n % i == 0:
-            return False
-    return True
-
-
-def get_mura(order):
-    """Return 2D MURA array
-    It is not a classical way.
-    Comparing to the wikipedia algorytm the mask is inverted
-    """
-    if not is_prime(order):
-        raise ValueError("The mask order should be prime")
-    quadratic_residues = np.unique(np.arange(order)**2 % order)
-    mask = np.zeros((order, order))
-    c = -np.ones(order)
-    c[np.isin(np.arange(order), quadratic_residues)] = 1
-    cc = np.outer(c, c)
-    mask[np.where(cc == 1)] = 1
-    mask = np.abs(mask - 1)[:, ::-1]
-    mask[0, :] = 1
-    mask[:, -1] = 0
-    return mask
-
-
-def get_mura_cut(order, cutx, cuty=None):
-    """Return 2D MURA array
-    It is not a classical way.
-    Comparing to the wikipedia algorytm the mask is inverted
-    """
-    if not cuty:
-        cuty = cutx
-    mask = get_mura(order)
-    mask_cut = mask[order//2-cutx//2:order//2+cutx // 2 + 1,
-                    order//2-cuty//2:order//2+cuty//2 + 1]
-    mask_cut[0, :] = 1
-    mask_cut[:, -1] = 0
-    return mask_cut
-
-
-# def reco_mlem_raw(matr, image, sens, niter=100, reco=None):
-#     if not reco:
-#         reco = [np.ones(matr.shape[-1])]
-#     for _ in tqdm(range(len(reco)-1, niter), desc="Reconstruction"):
-#         reco_tmp = reco[-1]/sens*(matr.T @ (image/(matr @ reco[-1])))
-#         # reco_tmp = reco[-1]*(matr.T @ (image/(matr @ reco[-1])))
-#         reco.append(reco_tmp)
-#     return reco

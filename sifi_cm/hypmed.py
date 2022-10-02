@@ -1,13 +1,17 @@
-import uproot
-import pandas as pd
-import numpy as np
-import sifi_cm.root_aux as raux
-import matplotlib.pyplot as plt
-from collections import namedtuple
-from sifi_cm.data_process import fit_1d, Gaussian_1D
+"""
+Auxliliary classes and functions to deal with PMI data for hypmed array
+"""
 import pickle
-
+from collections import namedtuple
 from os import path
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import uproot
+
+import sifi_cm.root_aux as raux
+from sifi_cm.data_fit import Gaussian_1D, fit_1d
 
 basepath = path.dirname(__file__)
 
@@ -210,7 +214,7 @@ class Reco_image(namedtuple("reco_image", "image edges true_pos")):
         return fig
 
 
-def get_vec_from_layers(df: pd.DataFrame, coord: dict, column: str):
+def get_vec_from_layers(df: pd.DataFrame, coord: dict, column: str) -> np.array:
     histo_data = [plt.hist2d(df[df.layer == layer_num].x,
                              df[df.layer == layer_num].y,
                              bins=[*coord[layer_num].xy_edges()],

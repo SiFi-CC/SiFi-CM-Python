@@ -1,4 +1,3 @@
-import root_aux as raux
 import numpy as np
 import uproot
 from collections import namedtuple
@@ -42,16 +41,16 @@ def get_data(dir_name, thres_low=0.0, thres_up=np.inf):
     counts = df.groupby("ScaFiberNumber").count()["ScaE"].values/tot_time_sec
     return meas_data(energy, counts), df
 
-if __name__ == "__main__":
-    bg_data, _ = get_data("2021-12-17_-_14-38-16_-_Test1DCMNoSource_15min")
-    nomask_data, _ = get_data("2021-12-17_-_13-02-26_-_Test1DCMNoMask7_7_5min")
-    nomask_bgfree_data = nomask_data - bg_data
-    nomask_bgfree_scaled_data = nomask_bgfree_data.normalize(
-        max(nomask_bgfree_data.energy), max(nomask_bgfree_data.counts))
+# if __name__ == "__main__":
+#     bg_data, _ = get_data("2021-12-17_-_14-38-16_-_Test1DCMNoSource_15min")
+#     nomask_data, _ = get_data("2021-12-17_-_13-02-26_-_Test1DCMNoMask7_7_5min")
+#     nomask_bgfree_data = nomask_data - bg_data
+#     nomask_bgfree_scaled_data = nomask_bgfree_data.normalize(
+#         max(nomask_bgfree_data.energy), max(nomask_bgfree_data.counts))
 
-    hmat = raux.get_hmat(
-        "../../Python_reco/input/1d_simulation/matr225_170_n1e6_det32_2lay_nowallpetcut31_mask467_70mm_1d_shifted.root")
-    edges = raux.get_source_edges(
-        "../../Python_reco/input/1d_simulation/matr225_170_n1e6_det32_2lay_nowallpetcut31_mask467_70mm_1d_shifted.root")
+#     hmat = raux.get_hmat(
+#         "../../Python_reco/input/1d_simulation/matr225_170_n1e6_det32_2lay_nowallpetcut31_mask467_70mm_1d_shifted.root")
+#     edges = raux.get_source_edges(
+#         "../../Python_reco/input/1d_simulation/matr225_170_n1e6_det32_2lay_nowallpetcut31_mask467_70mm_1d_shifted.root")
 
-    xlin = np.linspace(-32, 32, 1000)
+#     xlin = np.linspace(-32, 32, 1000)

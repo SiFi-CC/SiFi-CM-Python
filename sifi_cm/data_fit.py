@@ -1,11 +1,12 @@
-from typing import Tuple
-import numpy as np
-from sifi_cm.root_aux import Edges
-from scipy import interpolate
-from scipy.signal import find_peaks
 from collections import namedtuple
-import scipy.optimize as opt
-from scipy import ndimage
+from typing import Tuple
+
+import numpy as np
+from scipy.optimize import curve_fit
+from scipy.interpolate import InterpolatedUnivariateSpline
+from scipy.signal import find_peaks
+
+from sifi_cm.root_aux import Edges
 
 
 class Distal50:
@@ -58,7 +59,7 @@ class Distal50:
         edge_peak = projection[edge_index]
         # print(edge_peak, edge_index)
         # interpolation
-        f = interpolate.InterpolatedUnivariateSpline(
+        f = InterpolatedUnivariateSpline(
             self._edges.x_cent[:edge_index],
             projection[:edge_index] - 0.5*edge_peak)
         roots = f.roots()
@@ -131,8 +132,8 @@ def fit_1d(x, data):
     # first guess
     mean = sum(x * data) / sum(data)
     sigma = np.sqrt(sum(data * (x - mean) ** 2) / sum(data))
-    popt, _ = opt.curve_fit(Gaussian_1D, x, data,
-                            (mean, sigma, max(data), min(data)))
+    popt, _ = curve_fit(Gaussian_1D, x, data,
+                        (mean, sigma, max(data), min(data)))
     return GAUSS1D(*popt)
 
 
@@ -153,16 +154,9 @@ def fit_2d(x, y, data):
     """
     meanx = x[np.argmax(data.sum(axis=0))]
     meany = y[np.argmax(data.sum(axis=1))]
-    popt, _ = opt.curve_fit(
+    popt, _ = curve_fit(
         Gaussian_2D, (x, y), data.ravel(), (meanx, meany, 1, 1, 1, 1, 0))
     return GAUSS2D(*popt)
-
-
-def normalize(x):
-    if np.unique(x).shape[0] > 1:
-        return (x - x.min())/(x.max() - x.min())
-    else:
-        return np.ones_like(x)
 
 
 # def smooth(data, scale=7, norm=True, filter="median"):

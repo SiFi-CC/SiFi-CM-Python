@@ -1,3 +1,4 @@
 sifi_cm.egg-info/
 env
 build
+*/__pycache__/*

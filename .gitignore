@@ -2,3 +2,4 @@ sifi_cm.egg-info/
 env
 build
 */__pycache__/*
+*/.ipynb_checkpoints/*

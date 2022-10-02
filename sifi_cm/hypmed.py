@@ -20,62 +20,18 @@ basepath = path.dirname(__file__)
 
 class HypmedImporter():
 
-    def __init__(self, mapping_file=None) -> None:
+    def __init__(self, pproc_file=None) -> None:
         # f = resource_stream(__name__,
         #                     "data/hypmed/preprocess_data_normalized.pkl")
-        with open(basepath + "/data/hypmed/preprocess_data_normalized.pkl", "rb") as f:
+        if not pproc_file:
+            pproc_file = basepath + "/data/hypmed/preprocess_data_normalized.pkl"
+        with open(pproc_file, "rb") as f:
             self.mapp, self.coord, self.df_pproc = pickle.load(f)
 
     def get_data(self, filename: str,
                  verbose=False, normalize=True) -> pd.DataFrame:
-        with uproot.open(filename) as f:
-            for key in f['ordered'].keys():
-                if "timestamp" in key.lower():
-                    ts = key
-                    break
-            df = f['ordered'].arrays(library="pd",
-                                    expressions=['NeedleNumber',
-                                                'PhotonsRoi',
-                                                'HVD', ts])
-        tot_time_sec = (df[ts].max() - df[ts].min())/10**12
-        if verbose:
-            print("Total measurement time: ", round(tot_time_sec/60, 2), "[min]")
-        df_g = df.groupby("NeedleNumber")["PhotonsRoi"].sum().reset_index()
-        if normalize:
-            df_g["PhotonsRoi"] /= tot_time_sec
-        df_merged = pd.merge(df_g, self.mapp, left_on="NeedleNumber",
-                             right_on="index").drop("index", axis=1)
-        return df_merged
-
-    @staticmethod
-    def get_map(map_file: str = None):
-        """Get the mapping for each layer of Hypmed array
-
-        Parameters
-        ----------
-        map_file : str, optional
-            path to the file with mapping from 
-            NeedleNumber to position of the hit,
-            by default 'data/hypmed/crystal_v2.root'
-
-        Returns
-        -------
-        (pd.DataFrame, dict)
-            Dataframe with each position of needle and
-            dictionary with edges coordinates for each layer
-        """
-        if not map_file:
-            # map_file = resource_stream(__name__, "data/hypmed/crystal_v2.root")
-            map_file = basepath + "../data/hypmed/crystal_v2.root"
-        with uproot.open(map_file) as f:
-            mapping = f["tree"].arrays(library="pd")
-
-        coord = {}
-        for layer in range(1, 4):
-            coord[layer] = raux.Edges(mapping[mapping.layer == layer].x.unique(),
-                                      mapping[mapping.layer == layer].y.unique(),
-                                      edges=False)
-        return mapping, coord
+        return get_hypmed_data(filename, mapping=self.mapp,
+                               verbose=verbose, normalize=normalize)
 
     def process_file(self, fname, data=None):
         if not data:
@@ -87,29 +43,6 @@ class HypmedImporter():
         df["PhotonsRoi_norm"] = df["PhotonsRoi_bgfree"]/df["efficiency_map"]
         return df
 
-
-def figure_layers(df, coord, label=None, column="PhotonsRoi"):
-    fig = plt.figure(figsize=(15, 4))
-    fig.suptitle(label)
-    for layer_num in range(1, 4):
-        plt.subplot(130+layer_num)
-        plt.hist2d(df[df.layer == layer_num].x, df[df.layer == layer_num].y,
-                   bins=[*coord[layer_num].xy_edges()],
-                   weights=df[df.layer == layer_num][column], cmap='CMRmap')
-        plt.title(f"Layer {layer_num}")
-        plt.xlim([coord[1].x[0], coord[1].x[-1]])
-        plt.ylim([coord[1].y[0], coord[1].y[-1]])
-        fig.supxlabel('x')
-        fig.supylabel('y')
-        if layer_num == 3:
-            cbar = plt.colorbar(label="counts")
-        else:
-            cbar = plt.colorbar()
-        power_range = int(np.log10(df[column].abs().min()))
-        cbar.formatter.set_powerlimits((power_range, power_range))
-    plt.tight_layout()
-    # plt.close()
-    return fig
 
 
 class Reco_image(namedtuple("reco_image", "image edges true_pos")):
@@ -212,6 +145,82 @@ class Reco_image(namedtuple("reco_image", "image edges true_pos")):
 
         plt.tight_layout()
         return fig
+
+
+def get_map(map_file: str = None):
+        """Get the mapping for each layer of Hypmed array
+
+        Parameters
+        ----------
+        map_file : str, optional
+            path to the file with mapping from 
+            NeedleNumber to position of the hit,
+            by default 'data/hypmed/crystal_v2.root'
+
+        Returns
+        -------
+        (pd.DataFrame, dict)
+            Dataframe with each position of needle and
+            dictionary with edges coordinates for each layer
+        """
+        if not map_file:
+            # map_file = resource_stream(__name__, "data/hypmed/crystal_v2.root")
+            map_file = basepath + "../data/hypmed/crystal_v2.root"
+        with uproot.open(map_file) as f:
+            mapping = f["tree"].arrays(library="pd")
+
+        coord = {}
+        for layer in range(1, 4):
+            coord[layer] = raux.Edges(mapping[mapping.layer == layer].x.unique(),
+                                      mapping[mapping.layer == layer].y.unique(),
+                                      edges=False)
+        return mapping, coord
+
+
+def get_hypmed_data(filename: str, mapping,
+                    verbose=False, normalize=True) -> pd.DataFrame:
+    with uproot.open(filename) as f:
+        for key in f['ordered'].keys():
+            if "timestamp" in key.lower():
+                ts = key
+                break
+        df = f['ordered'].arrays(library="pd",
+                                expressions=['NeedleNumber',
+                                            'PhotonsRoi',
+                                            'HVD', ts])
+    tot_time_sec = (df[ts].max() - df[ts].min())/10**12
+    if verbose:
+        print("Total measurement time: ", round(tot_time_sec/60, 2), "[min]")
+    df_g = df.groupby("NeedleNumber")["PhotonsRoi"].sum().reset_index()
+    if normalize:
+        df_g["PhotonsRoi"] /= tot_time_sec
+    df_merged = pd.merge(df_g, mapping, left_on="NeedleNumber",
+                            right_on="index").drop("index", axis=1)
+    return df_merged
+
+
+def figure_layers(df, coord, label=None, column="PhotonsRoi"):
+    fig = plt.figure(figsize=(15, 4))
+    fig.suptitle(label)
+    for layer_num in range(1, 4):
+        plt.subplot(130+layer_num)
+        plt.hist2d(df[df.layer == layer_num].x, df[df.layer == layer_num].y,
+                   bins=[*coord[layer_num].xy_edges()],
+                   weights=df[df.layer == layer_num][column], cmap='CMRmap')
+        plt.title(f"Layer {layer_num}")
+        plt.xlim([coord[1].x[0], coord[1].x[-1]])
+        plt.ylim([coord[1].y[0], coord[1].y[-1]])
+        fig.supxlabel('x')
+        fig.supylabel('y')
+        if layer_num == 3:
+            cbar = plt.colorbar(label="counts")
+        else:
+            cbar = plt.colorbar()
+        power_range = int(np.log10(df[column].abs().min()))
+        cbar.formatter.set_powerlimits((power_range, power_range))
+    plt.tight_layout()
+    # plt.close()
+    return fig
 
 
 def get_vec_from_layers(df: pd.DataFrame, coord: dict, column: str) -> np.array:

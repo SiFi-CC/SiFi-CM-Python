@@ -150,7 +150,8 @@ def get_hmat(path: str, norm=True, hypmed=False) -> np.array:
         If True, each element of the matrix will be divided
         by the sum of all the values in the corresponding row, by default True
     hypmed : bool, optional
-        If True, 3 matrices will be loaded (for each layer of hypmed crystals). By default False
+        If True, 3 matrices will be loaded (for each layer of hypmed crystals).
+        By default False
 
     Returns
     -------
@@ -218,9 +219,9 @@ def reco_mlem(matr: np.array, image: np.array,
     ValueError
         If shapes of vectors/matrix are not appropriate.
     """
-    if not S:
+    if not isinstance(S, np.ndarray):
         S = matr.sum(axis=0)
-    if not bg:
+    if not isinstance(bg, np.ndarray):
         bg = np.zeros_like(image)
     if matr.shape[0] != image.shape[0] != bg.shape[0]\
             or matr.shape[-1] != S.shape[0]:

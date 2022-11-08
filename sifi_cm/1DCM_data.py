@@ -2,6 +2,11 @@ import numpy as np
 import uproot
 from collections import namedtuple
 
+"""
+Auxiliary class and function
+to analyze data from 1D measurement.
+Beamtime in Aachen (Dec. 2021)
+"""
 
 class meas_data(namedtuple("meas_data",
                            "energy, counts")):

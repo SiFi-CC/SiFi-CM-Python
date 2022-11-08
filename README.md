@@ -15,3 +15,14 @@ Auxiliary functions for CM image reconstruction  and data analysis with Python
 ## Usage
 
 Some demo notebooks are in `demo` catalog.
+
+## List of functions
+
+### root_aux
+
+* get_histo
+* get_hmat
+* get_source_edges
+* reco_mlem
+* get_hypmed_sim_row
+* mse_uqi

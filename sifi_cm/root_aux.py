@@ -8,6 +8,8 @@ import numpy as np
 import uproot
 from tqdm import tqdm
 
+from sifi_cm.data_fit import normalize
+
 
 class Edges(namedtuple("XY", "x y")):
     """Class inherited from named tuple which represents
@@ -137,9 +139,27 @@ def get_histo(path, histo_names=["energyDeposits", "sourceHist"], edges=True):
     return result[0] if type(histo_names) == str else result
 
 
+def get_deposits(path: str) -> Histogram:
+    return get_histo(path, "energyDeposits")
+
+
+def get_source_edges(path: str) -> Edges:
+    return get_histo(path, "sourceHist").edges
+
+
+def get_hypmed_sim_row(path: str):
+    simdata = get_histo(
+        path, [f"energyDepositsLayer{i}" for i in range(3)])
+    return np.hstack([sim.vals.flatten() for sim in simdata])
+
+
+def get_deposits_source(path: str):
+    return get_histo(path, ["energyDeposits", "sourceHist"])
+
+
 def get_hmat(path: str, norm=True, hypmed=False) -> np.array:
-    """Get system matrix from .roo file. System matrix is supposed to 
-    me a matrix called 'matrixH'  if 'hypmed == False' and
+    """Get system matrix from .root file. System matrix is supposed to
+    be a matrix called 'matrixH'  if 'hypmed == False' and
     3 matrices 'matrixH{0,1,2}' if 'hypmed == True'
 
     Parameters
@@ -181,10 +201,6 @@ def get_hmat(path: str, norm=True, hypmed=False) -> np.array:
     if norm:
         matrixH = matrixH/matrixH.sum(axis=0)  # normalization
     return matrixH
-
-
-def get_source_edges(path: str) -> Edges:
-    return get_histo(path, "sourceHist").edges
 
 
 def reco_mlem(matr: np.array, image: np.array,
@@ -237,13 +253,7 @@ def reco_mlem(matr: np.array, image: np.array,
     return list(reco) if keep_all else reco[-1]
 
 
-def get_hypmed_sim_row(path):
-    simdata = get_histo(
-        path, [f"energyDepositsLayer{i}" for i in range(3)])
-    return np.hstack([sim.vals.flatten() for sim in simdata])
-
-
-def mse_uqi(x, y, normx=False, normy=True):
+def mse_uqi(x, y, normx=False, normy=False, normall=False):
     """Compute MSI and UQI similarities between 2 vectors
 
     Parameters
@@ -253,21 +263,23 @@ def mse_uqi(x, y, normx=False, normy=True):
     normx : bool, optional
         If True - vector x will be normalized, by default False
     normy : bool, optional
-        If True - vector y will be normalized, by default True
+        If True - vector y will be normalized, by default False
+    normall : bool, optional
+        Setting both normx and normy, by default False
 
     Returns
     -------
     tuple(float, float, float)
-        MSE, 1/UQI, MSE/UQI
+        MSE, 1/UQI
 
     Raises
     ------
     ValueError
         If lenghts of vectors are not the same
     """
-    if normx:
+    if normx or normall:
         x = normalize(x)
-    if normy:
+    if normy or normall:
         y = normalize(y)
     if x.shape != y.shape:
         raise ValueError("Shapes of arrays are different")
@@ -277,24 +289,4 @@ def mse_uqi(x, y, normx=False, normy=True):
         / (x.mean()**2 + y.mean()**2)
     if uqi == 0:
         uqi = 1e-2
-    return mse, 1/uqi, mse/uqi
-
-
-def normalize(x):
-    if np.unique(x).shape[0] > 1:
-        return (x - x.min())/(x.max() - x.min())
-    else:
-        return np.ones_like(x)
-
-# def mse_uqi_set(x_set, y, normx=False, normy=True):
-#     if normy:
-#         y = normalize(y)
-#     mse = []
-#     uqi = []
-#     comb = []
-#     for x in x_set:
-#         mse_tmp, uqi_tmp, comb_tmp = mse_uqi(x, y, normy=False, normx=normx)
-#         mse.append(mse_tmp)
-#         uqi.append(uqi_tmp)
-#         comb.append(comb_tmp)
-#     return mse, uqi, comb
+    return mse, 1/uqi

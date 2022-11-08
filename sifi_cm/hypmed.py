@@ -1,5 +1,6 @@
 """
-Auxliliary classes and functions to deal with PMI data for hypmed array
+Auxliliary classes and functions to deal with PMI data for hypmed array.
+Beamtime in Aachen(Dec. 2021)
 """
 import pickle
 from collections import namedtuple

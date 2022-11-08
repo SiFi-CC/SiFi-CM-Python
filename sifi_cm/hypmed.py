@@ -46,8 +46,17 @@ class HypmedImporter():
 
 
 class Reco_image(namedtuple("reco_image", "image edges true_pos")):
-    """Class inherited from named tuple.
-
+    """Class inherited from named tuple.    
+    Parameters
+    ----------
+    reco_obj : np.array
+        _description_
+    reco_edges : raux.Edges
+        _description_
+    norm : bool, optional
+        If True, object is normalized as density probability, by default True
+    true_pos : list, optional
+        _description_, by default []
     Raises
     ------
     ValueError
@@ -69,11 +78,11 @@ class Reco_image(namedtuple("reco_image", "image edges true_pos")):
 
     @property
     def projx(self):
-        return self.image.sum(axis=0)*2*self.edges.y_binWidth
+        return self.image.sum(axis=0)/self.image.sum(axis=0).max()
 
     @property
     def projy(self):
-        return self.image.sum(axis=1)*2*self.edges.x_binWidth
+        return self.image.sum(axis=1)/self.image.sum(axis=1).max()
 
     @property
     def fitx(self):

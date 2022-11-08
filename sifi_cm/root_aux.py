@@ -218,9 +218,9 @@ def reco_mlem(matr: np.array, image: np.array,
     ValueError
         If shapes of vectors/matrix are not appropriate.
     """
-    if not S:
+    if not isinstance(S, np.ndarray):
         S = matr.sum(axis=0)
-    if not bg:
+    if not isinstance(bg, np.ndarray):
         bg = np.zeros_like(image)
     if matr.shape[0] != image.shape[0] != bg.shape[0]\
             or matr.shape[-1] != S.shape[0]:

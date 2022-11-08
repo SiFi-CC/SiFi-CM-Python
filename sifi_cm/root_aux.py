@@ -150,7 +150,8 @@ def get_hmat(path: str, norm=True, hypmed=False) -> np.array:
         If True, each element of the matrix will be divided
         by the sum of all the values in the corresponding row, by default True
     hypmed : bool, optional
-        If True, 3 matrices will be loaded (for each layer of hypmed crystals). By default False
+        If True, 3 matrices will be loaded (for each layer of hypmed crystals).
+        By default False
 
     Returns
     -------

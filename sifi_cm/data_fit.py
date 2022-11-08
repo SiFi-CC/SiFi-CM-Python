@@ -5,6 +5,7 @@ import numpy as np
 from scipy.optimize import curve_fit
 from scipy.interpolate import InterpolatedUnivariateSpline
 from scipy.signal import find_peaks
+from scipy import ndimage
 
 from sifi_cm.root_aux import Edges
 
@@ -159,14 +160,14 @@ def fit_2d(x, y, data):
     return GAUSS2D(*popt)
 
 
-# def smooth(data, scale=7, norm=True, filter="median"):
-#     if filter == "median":
-#         smoothed = ndimage.median_filter(data, size=scale)
-#     elif filter == "gaus" or "gauss":
-#         smoothed = ndimage.gaussian_filter(data, scale)
-#     else:
-#         raise ValueError("this filter is not defined")
-#     if norm:
-#         smoothed -= np.min(smoothed)
-#         smoothed /= smoothed.max()
-#     return smoothed
+def smooth(data, scale=7, norm=True, filter="median"):
+    if filter == "median":
+        smoothed = ndimage.median_filter(data, size=scale)
+    elif filter == "gaus" or "gauss":
+        smoothed = ndimage.gaussian_filter(data, scale)
+    else:
+        raise ValueError("this filter is not defined")
+    if norm:
+        smoothed -= np.min(smoothed)
+        smoothed /= smoothed.max()
+    return smoothed

@@ -1,10 +1,8 @@
 from collections import namedtuple
 
 import numpy as np
-from scipy.optimize import curve_fit
-from scipy.signal import find_peaks
 from scipy import ndimage
-from scipy import interpolate
+from scipy.optimize import curve_fit
 
 from sifi_cm.functions import Gaussian_1D, Gaussian_2D, sigmoid3
 
@@ -66,25 +64,8 @@ def smooth(data, scale=7, norm=True, filter="median"):
     else:
         raise ValueError("this filter is not defined")
     if norm:
-        smoothed -= np.min(smoothed)
-        smoothed /= smoothed.max()
+        smoothed = normalize(smoothed)
     return smoothed
-
-
-def FitSigmoid(fit_range, profile):
-    """Fit Sigmoid to function."""
-    peaks = find_peaks(profile)[0]
-    maxpeak_index = peaks[profile[peaks].argmax()]
-    left_x = fit_range[:maxpeak_index]
-    left_y = profile[:maxpeak_index]
-    maxgrad = left_x[np.gradient(left_y).argmax()]
-    # print("first guess inflection:", round(maxgrad, 2))
-    p, _ = curve_fit(sigmoid3, fit_range, profile,
-                     p0=[profile.max(), 1,
-                         maxgrad, 0.1],
-                     maxfev=10000,
-                     method='trf')
-    return p
 
 
 def normalize(x):
@@ -94,20 +75,18 @@ def normalize(x):
         return np.ones_like(x)
 
 
-def DistalFalloff(x, y):
-    indices = np.where((x < x[y.argmax() + 15]))
-    p_fit = FitSigmoid(x[indices], y[indices])
-
-    y_smooth = smooth(y, scale=4)
-
-    # xmax = x[y_smooth.argmax()]
-    ymax = y_smooth.max()
-    # ymin = np.median(y_smooth[:y_smooth.argmax()])
-    ymin = y_smooth[:y_smooth.argmax()].min()
-    y_50proc = np.mean([ymin, ymax])
-
-    f = interpolate.UnivariateSpline(x, y_smooth - y_50proc, s=1.2)
-    roots = f.roots()
-    distal = roots[roots < x[y_smooth.argmax()]][-1]
-
-    return p_fit[2], distal
+def FitSigmoid(fit_range, profile):
+    """Fit Sigmoid to function."""
+    # peaks = find_peaks(profile)[0]
+    maxpeak_index = profile.argmax()
+    left_x = fit_range[:maxpeak_index]
+    left_y = profile[:maxpeak_index]
+    maxgrad = left_x[np.gradient(left_y).argmax()]
+    # print("first guess inflection:", round(maxgrad, 2))
+    p, _ = curve_fit(sigmoid3, fit_range, profile,
+                     # p0=[profile.max(),1,fit_range[0],0.1],
+                     p0=[profile.max(), 1,
+                         maxgrad, 0],
+                     maxfev=10000,
+                     method='trf')
+    return p

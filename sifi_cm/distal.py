@@ -39,7 +39,7 @@ def sigmoid(x: np.ndarray, y: np.ndarray,
 
 
 def spline(x: np.ndarray, y: np.ndarray,
-           filter_name: Literal["gaussian", "median"] = "gaussian",
+           filter_name: Literal["gaussian", "median", None] = "gaussian",
            filter_scale: int = 3,
            direction: Literal["right", "left"] = "right"):
     """Find a DFPD basing on the
@@ -62,14 +62,19 @@ def spline(x: np.ndarray, y: np.ndarray,
     float
         DFPD
     """
+    if filter_name:
+        y = smooth(y, filter=filter_name, scale=filter_scale)
     ymax = y.max()
     ymin = np.median(y[:y.argmax()])  # ???
     y_50proc = np.mean([ymin, ymax])
 
-    ysm = smooth(y, filter=filter_name, scale=filter_scale)
-    f = interpolate.UnivariateSpline(x, ysm - y_50proc, s=0)
+    f = interpolate.UnivariateSpline(x, y - y_50proc, s=0)
+    # print("HI")
     roots = f.roots()
-    distal = roots[roots < x[y.argmax()]]
-    if len(distal) > 1 or not distal:
+    distal_val = roots[roots < x[y.argmax()]]
+    if distal_val.shape[0] == 0:
+        print(distal_val)
         raise Exception("Error")
-    return distal[0]
+    if len(distal_val) > 1:
+        return min(distal_val)
+    return distal_val[0]

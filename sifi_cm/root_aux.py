@@ -9,6 +9,7 @@ import uproot
 from tqdm import tqdm
 
 from sifi_cm.data_fit import normalize
+from typing import Union, List
 
 
 class Edges(namedtuple("XY", "x y")):
@@ -83,6 +84,21 @@ class Histogram(namedtuple('Histogram', ['vals', 'edges', 'name'])):
         return "Histogram {}".format(self.name)
 
     def __add__(self, other):
+        if isinstance(other, (int, float, complex)):
+            return Histogram(other + self.vals, self.edges, self.name)
+        if self.edges == other.edges:
+            total_vals = self.vals + other.vals
+        else:
+            raise KeyError
+        if self.name == other.name:
+            name = self.name
+        else:
+            name = "summed_histo"
+        return Histogram(total_vals, self.edges, name)
+
+    def __radd__(self, other):
+        if isinstance(other, (int, float, complex)):
+            return Histogram(other + self.vals, self.edges, self.name)
         if self.edges == other.edges:
             total_vals = self.vals + other.vals
         else:
@@ -108,7 +124,8 @@ class Histogram(namedtuple('Histogram', ['vals', 'edges', 'name'])):
             raise KeyError
 
 
-def get_histo(path, histo_names=["energyDeposits", "sourceHist"], edges=True):
+def get_histo(path, histo_names=["energyDeposits", "sourceHist"],
+              edges=True) -> Union[Histogram, List[Histogram]]:
     """Get histogram(s) from the .root file
 
     Args:
@@ -153,11 +170,11 @@ def get_hypmed_sim_row(path: str):
     return np.hstack([sim.vals.flatten() for sim in simdata])
 
 
-def get_deposits_source(path: str):
+def get_deposits_source(path: str) -> List[Histogram]:
     return get_histo(path, ["energyDeposits", "sourceHist"])
 
 
-def get_hmat(path: str, norm=True, hypmed=False) -> np.array:
+def get_hmat(path: str, norm=True, hypmed=False) -> np.ndarray:
     """Get system matrix from .root file. System matrix is supposed to
     be a matrix called 'matrixH'  if 'hypmed == False' and
     3 matrices 'matrixH{0,1,2}' if 'hypmed == True'
@@ -203,22 +220,22 @@ def get_hmat(path: str, norm=True, hypmed=False) -> np.array:
     return matrixH
 
 
-def reco_mlem(matr: np.array, image: np.array,
+def reco_mlem(matr: np.ndarray, image: np.ndarray,
               niter: int = 100,
-              S: np.array = None,
-              bg: np.array = None,
-              keep_all: bool = False) -> np.array:
+              S: np.ndarray = None,
+              bg: np.ndarray = None,
+              keep_all: bool = False) -> Union[np.ndarray, List[np.ndarray]]:
     """LM-MLEM reconstruction
 
     Parameters
     ----------
-    matr : np.array
+    matr : np.ndarray
         System matrix
-    image : np.array
+    image : np.ndarray
         Image vector to be reconstructed
-    S : np.array, optional
+    S : np.ndarray, optional
         Sensetivity map, by default uniform map is used
-    bg : np.array, optional
+    bg : np.ndarray, optional
         Background. If used, it is added to the denomenator. By default 0
     niter : int, optional
         Number of iterations, by default 100

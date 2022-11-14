@@ -8,6 +8,7 @@ to analyze data from 1D measurement.
 Beamtime in Aachen (Dec. 2021)
 """
 
+
 class meas_data(namedtuple("meas_data",
                            "energy, counts")):
     @property
@@ -36,9 +37,10 @@ class meas_data(namedtuple("meas_data",
 
 
 def get_data(dir_name, thres_low=0.0, thres_up=np.inf):
-    with uproot.open("./" + dir_name + "/fiberCoincidences_calib.root") as file:
+    with uproot.open(dir_name + "/fiberCoincidences_calib.root") as file:
         df = file["calibratedData;1"].arrays(
-            ["ScaFiberNumber", "ScaE", "ScaTimeStampR", "ScaTimeStampL"], library="pd")
+            ["ScaFiberNumber", "ScaE", "ScaTimeStampR", "ScaTimeStampL"],
+            library="pd")
     tot_time_sec = (df[["ScaTimeStampR", "ScaTimeStampL"]].max().max()
                     - df[["ScaTimeStampR", "ScaTimeStampL"]].min().min())/10**12
     df = df.drop(df[(df["ScaE"] < thres_low) | (df["ScaE"] > thres_up)].index)

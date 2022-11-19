@@ -2,6 +2,9 @@ import numpy as np
 import uproot
 from collections import namedtuple
 
+import sifi_cm.root_aux as raux
+from sifi_cm.data_fit import fit_1d
+
 """
 Auxiliary class and function
 to analyze data from 1D measurement.
@@ -61,3 +64,39 @@ def get_data(dir_name, thres_low=0.0, thres_up=np.inf):
 #         "../../Python_reco/input/1d_simulation/matr225_170_n1e6_det32_2lay_nowallpetcut31_mask467_70mm_1d_shifted.root")
 
 #     xlin = np.linspace(-32, 32, 1000)
+
+
+class Reco_image1D(namedtuple("reco_image", "image edges true_pos")):
+    """Class inherited from named tuple.    
+    Parameters
+    ----------
+    reco_obj : np.array
+        _description_
+    reco_edges : raux.Edges
+        _description_
+    norm : bool, optional
+        If True, object is normalized as density probability, by default True
+    true_pos : list, optional
+        _description_, by default []
+    Raises
+    ------
+    ValueError
+        If trying to get binWidth when widths are different for X and Y
+    """
+    def __new__(cls, reco_obj: np.array, reco_edges: raux.Edges,
+                norm=True, true_pos=[]):
+        # if len(reco_obj.shape) != 1:
+            # if int(np.sqrt(reco_obj.shape[0])) != np.sqrt(reco_obj.shape[0]):
+            #     raise ValueError
+            # else:
+            #     side_size = int(np.sqrt(reco_obj.shape[0]))
+            # reco_obj = reco_obj.reshape(
+            #     side_size, side_size).T[::-1, ::-1]
+        reco_obj = reco_obj.flatten()
+        if norm:
+            reco_obj /= reco_obj.sum()
+        return super().__new__(cls, reco_obj, reco_edges, true_pos)
+
+    @property
+    def fit(self):
+        return fit_1d(self.edges.x_cent, self.image)

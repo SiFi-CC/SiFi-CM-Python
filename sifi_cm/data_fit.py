@@ -30,7 +30,7 @@ def fit_1d(x, data):
     mean = sum(x * data) / sum(data)
     sigma = np.sqrt(sum(data * (x - mean) ** 2) / sum(data))
     popt, _ = curve_fit(Gaussian_1D, x, data,
-                        (mean, sigma, max(data), min(data)))
+                        (mean, abs(sigma), max(data), min(data)))
     return GAUSS1D(*popt)
 
 

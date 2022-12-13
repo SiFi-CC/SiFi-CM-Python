@@ -73,8 +73,7 @@ class Reco_image(namedtuple("reco_image", "image edges true_pos")):
             reco_obj = reco_obj.reshape(
                 side_size, side_size).T[::-1, ::-1]
         if norm:
-            reco_obj /= reco_obj.sum() * 2 * reco_edges.x_binWidth\
-                                       * 2 * reco_edges.y_binWidth
+            reco_obj /= reco_obj.sum()
         return super().__new__(cls, reco_obj, reco_edges, true_pos)
 
     @property

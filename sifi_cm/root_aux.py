@@ -299,7 +299,7 @@ def mse_uqi(x, y, normx=False, normy=False, normall=False):
     if normy or normall:
         y = normalize(y)
     if x.shape != y.shape:
-        raise ValueError("Shapes of arrays are different")
+        raise ValueError(f"Shapes of arrays are different: {x.shape} vs {y.shape}")
     mse = ((y - x)**2).mean()
     cov = np.cov(x.flatten(), y.flatten())
     uqi = 4*x.mean()*y.mean()*cov[0, 1]/(cov[0, 0]+cov[1, 1])\

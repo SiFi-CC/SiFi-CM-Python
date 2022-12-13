@@ -24,13 +24,14 @@ class GAUSS2D(namedtuple("gauss2D_params",
         return self.sigmay**2
 
 
-def fit_1d(x, data):
+def fit_1d(x, data, **kwargs):
     "Fit 1D array with Gaussian"
     # first guess
     mean = sum(x * data) / sum(data)
     sigma = np.sqrt(sum(data * (x - mean) ** 2) / sum(data))
     popt, _ = curve_fit(Gaussian_1D, x, data,
-                        (mean, abs(sigma), max(data), min(data)))
+                        (mean, abs(sigma), max(data), min(data)),
+                        method='lm', maxfev=10000)
     return GAUSS1D(*popt)
 
 

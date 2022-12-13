@@ -74,7 +74,7 @@ def spline(x: np.ndarray, y: np.ndarray,
     distal_val = roots[roots < x[y.argmax()]]
     if distal_val.shape[0] == 0:
         print(distal_val)
-        raise Exception("Error")
+        return None
     if len(distal_val) > 1:
         return min(distal_val)
     return distal_val[0]

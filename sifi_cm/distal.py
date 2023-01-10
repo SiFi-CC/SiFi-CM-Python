@@ -1,33 +1,31 @@
 import numpy as np
-from data_fit import smooth
 from scipy import interpolate
-from scipy.optimize import curve_fit
+
+from sifi_cm.data_fit import FitSigmoid, smooth
+from typing import Literal
 
 
-def sigmoid3(x, L, b, x0, k):
-    """Sigmoid function."""
-    y = L / (1 + np.exp(-k*(x-x0), dtype=np.float128)) + b
-    return (y)
+def sigmoid(x: np.ndarray, y: np.ndarray,
+            direction: Literal["right", "left"] = "right",
+            range_deltax: float = 15):
+    """Find a DFPD basing on the sigmoid fitting
 
+    Parameters
+    ----------
+    x : np.ndarray
+    y : np.ndarray
+    direction : str, optional
+        direction of the beam, by default "right"
+    range_deltax : float, optional
+        range of fitting to the right of the peak
+        and to the left of minimum value
+        (other way round if direction=='left'), by default 15
 
-def FitSigmoid(fit_range, profile):
-    """Fit Sigmoid to function."""
-    # peaks = find_peaks(profile)[0]
-    maxpeak_index = profile.argmax()
-    left_x = fit_range[:maxpeak_index]
-    left_y = profile[:maxpeak_index]
-    maxgrad = left_x[np.gradient(left_y).argmax()]
-    # print("first guess inflection:", round(maxgrad, 2))
-    p, _ = curve_fit(sigmoid3, fit_range, profile,
-                     # p0=[profile.max(),1,fit_range[0],0.1],
-                     p0=[profile.max(), 1,
-                         maxgrad, 0],
-                     maxfev=10000,
-                     method='trf')
-    return p
-
-
-def sigmoid(x, y, direction="right", range_deltax=15):
+    Returns
+    -------
+    float
+        DFPD
+    """
     xmax = x[y.argmax()]
     if direction == "right":
         xmin = x[y[:y.argmax()].argmin()]
@@ -40,16 +38,43 @@ def sigmoid(x, y, direction="right", range_deltax=15):
     return p_fit[2]
 
 
-def spline(x, y, filter_name="gaussian",
-           filter_scale=3, direction="right"):
+def spline(x: np.ndarray, y: np.ndarray,
+           filter_name: Literal["gaussian", "median", None] = "gaussian",
+           filter_scale: int = 3,
+           direction: Literal["right", "left"] = "right"):
+    """Find a DFPD basing on the
+    procedure described in DOI:10.1088/0031-9155/58/13/4563
+
+    Parameters
+    ----------
+    x : np.ndarray
+    y : np.ndarray
+    filter_name : str, optional
+        Smoothing applied to the data, either 'gaussian' or 'median',
+        by default "gaussian"
+    filter_scale : int, optional
+        scale of filter, by default 3
+    direction : str, optional
+        direction of the beam, by default "right"
+
+    Returns
+    -------
+    float
+        DFPD
+    """
+    if filter_name:
+        y = smooth(y, filter=filter_name, scale=filter_scale)
     ymax = y.max()
     ymin = np.median(y[:y.argmax()])  # ???
     y_50proc = np.mean([ymin, ymax])
 
-    ysm = smooth(y, filter=filter_name, scale=filter_scale)
-    f = interpolate.UnivariateSpline(x, ysm - y_50proc, s=0)
+    f = interpolate.UnivariateSpline(x, y - y_50proc, s=0)
+    # print("HI")
     roots = f.roots()
-    distal = roots[roots < x[y.argmax()]]
-    if len(distal) > 1:
-        print("Warning! More than 1 DFPD")
-    return distal[0]
+    distal_val = roots[roots < x[y.argmax()]]
+    if distal_val.shape[0] == 0:
+        print(distal_val)
+        return None
+    if len(distal_val) > 1:
+        return min(distal_val)
+    return distal_val[0]

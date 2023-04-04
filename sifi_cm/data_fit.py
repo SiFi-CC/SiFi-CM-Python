@@ -24,7 +24,7 @@ class GAUSS2D(namedtuple("gauss2D_params",
         return self.sigmay**2
 
 
-def fit_1d(x, data):
+def fit_1d(x, data, **kwargs):
     "Fit 1D array with Gaussian"
     # first guess
     mean = sum(x * data) / sum(data)

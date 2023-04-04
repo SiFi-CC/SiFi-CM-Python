@@ -3,7 +3,7 @@ import uproot
 from collections import namedtuple
 
 import sifi_cm.root_aux as raux
-from sifi_cm.data_fit import fit_1d
+from sifi_cm.data_fit import fit_1d, normalize
 
 """
 Auxiliary class and function
@@ -95,6 +95,7 @@ class Reco_image1D(namedtuple("reco_image", "image edges true_pos")):
         reco_obj = reco_obj.flatten()
         if norm:
             reco_obj /= reco_obj.sum()
+            # reco_obj = normalize(reco_obj)
         return super().__new__(cls, reco_obj, reco_edges, true_pos)
 
     @property

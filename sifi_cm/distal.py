@@ -65,16 +65,23 @@ def spline(x: np.ndarray, y: np.ndarray,
     if filter_name:
         y = smooth(y, filter=filter_name, scale=filter_scale)
     ymax = y.max()
-    ymin = np.median(y[:y.argmax()])  # ???
+    if direction == "right":
+        ymin = np.median(y[:y.argmax()])  # ???
+    else:
+        ymin = np.median(y[y.argmax():])
     y_50proc = np.mean([ymin, ymax])
 
     f = interpolate.UnivariateSpline(x, y - y_50proc, s=0)
     # print("HI")
     roots = f.roots()
-    distal_val = roots[roots < x[y.argmax()]]
+    if direction == "right":
+        distal_val = roots[roots < x[y.argmax()]]
+    elif direction == "left":
+        distal_val = roots[roots > x[y.argmax()]]
     if distal_val.shape[0] == 0:
         print(distal_val)
-        raise Exception("Error")
+        return None
+        # raise Exception("Error")
     if len(distal_val) > 1:
         return min(distal_val)
     return distal_val[0]

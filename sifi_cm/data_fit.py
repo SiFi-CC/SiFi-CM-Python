@@ -27,7 +27,10 @@ class GAUSS2D(namedtuple("gauss2D_params",
 def fit_1d(x, data, **kwargs):
     "Fit 1D array with Gaussian"
     # first guess
-    mean = sum(x * data) / sum(data)
+    if not kwargs["guess"]:
+        mean = sum(x * data) / sum(data)
+    else:
+        mean = kwargs["guess"]
     sigma = np.sqrt(sum(data * (x - mean) ** 2) / sum(data))
     popt, _ = curve_fit(Gaussian_1D, x, data,
                         (mean, abs(sigma), max(data), min(data)),

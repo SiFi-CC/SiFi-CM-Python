@@ -199,7 +199,8 @@ def get_hypmed_data(filename: str, mapping,
                                             'HVD', ts])
     tot_time_sec = (df[ts].max() - df[ts].min())/10**12
     if verbose:
-        print("Total measurement time: ", round(tot_time_sec/60, 2), "[min]")
+        print(f"Total measurement time: {round(tot_time_sec, 2)}, [sec] ({round(tot_time_sec/60, 2)}, [min])")
+        print(f"Entries: {df.shape[0]}")
     df_g = df.groupby("NeedleNumber")["PhotonsRoi"].sum().reset_index()
     if normalize:
         df_g["PhotonsRoi"] /= tot_time_sec

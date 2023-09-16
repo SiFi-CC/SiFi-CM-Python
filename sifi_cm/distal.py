@@ -83,10 +83,10 @@ def spline(x: np.ndarray, y: np.ndarray,
             candidates = candidates[y[candidates].argmax()+1:]
     ymax = y[current_peak]
     if direction == "right":
-        ymin = np.min(y[:y.argmax()])  # ???
+        ymin = np.min(y[:y.argmax()])
     else:
         ymin = np.min(y[y.argmax():])
-    # print(ymin)
+
     y_50proc = np.mean([ymin, ymax])
 
     f = interpolate.UnivariateSpline(x, y - y_50proc, s=0)
